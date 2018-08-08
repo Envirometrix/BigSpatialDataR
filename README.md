@@ -25,7 +25,14 @@ Processing large spatial data in a programming environment such as R is not triv
 4.  build a virtual mosaic and final image using GDAL,
 5.  avoid loading any large data in RAM,
 
-In addition to R, we also provide some code examples of how to use SAGA GIS, GRASS GIS and GDAL in parallel. For more information, see also these [lecture notes](./tex/Processing_large_rasters_R.pdf).
+In addition to R, we also provide some code examples of how to use SAGA GIS, GRASS GIS and GDAL in parallel. For more information, see also these [lecture notes](./tex/Processing_large_rasters_R.pdf). Packages used in this tutorial include:
+
+``` r
+list.of.packages <- c("plyr", "parallel", "GSIF", "ranger", "raster", 
+                      "rgdal", "rgrass7", "snowfall", "lidR", "knitr", "tmap")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
+```
 
 Note: the processing below is demonstrated using relatively large objects and a computer with 8 cores running on Ubuntu 16.04 operating system. To install software used in this tutorial and teach your-self some initial steps, consider reading [this document](https://envirometrix.github.io/PredictiveSoilMapping/soil-covs-chapter.html).
 
@@ -78,7 +85,7 @@ GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif")
     ## Metadata:
     ## AREA_OR_POINT=Area
 
-this image is about 6000 by 6000 pixels in size hence not huge (for illustration, a land cover map of the whole world at 300 m resolution contains over billion pixels) but it could be more efficiently processed if we use tiling and parallelization.
+this image is about 6000 by 6000 pixels in size hence not huge (for illustration, a land cover map of the whole world at 300 m resolution contains over billion pixels) but it could still be more efficiently processed if we use tiling and parallelization.
 
 We are interested in deriving the difference in land cover between two periods 2000 and 2015. First, we make a function that can be used to detect differences:
 
@@ -113,7 +120,7 @@ make_LC_tiles <- function(i, tile.tbl,
 }
 ```
 
-this function we can run for each element `i` i.e. for smaller blocks and hence also in parallel. The function looks for where there has been a change in land cover, and then assign an unique number that identifies change from land cover class `A` to land cover class `B` (hence class `A-B`). We need to prepare a combined legend for combinations of land cover classes. This output legend we can prepare by using:
+this function we can run for each element `i` i.e. for smaller blocks and hence can be run in parallel. The function looks for where there has been a change in land cover, and then assign an unique number that identifies change from land cover class `A` to land cover class `B` (hence class `A-B`). We need to prepare a combined legend for combinations of land cover classes. This output legend we can prepare by using:
 
 ``` r
 leg <- read.csv("./data/ESA_landcover_legend.csv")
@@ -452,7 +459,7 @@ summary(sel.na)
 ```
 
     ##    Mode   FALSE    TRUE 
-    ## logical    2631   46018
+    ## logical    2632   46017
 
 ``` r
 m.DLSM <- ranger(fm.DLSM, rm.DLSM[sel.na,], num.trees=85, importance="impurity")
@@ -466,13 +473,13 @@ m.DLSM
     ## 
     ## Type:                             Regression 
     ## Number of trees:                  85 
-    ## Sample size:                      46018 
+    ## Sample size:                      46017 
     ## Number of independent variables:  5 
     ## Mtry:                             2 
     ## Target node size:                 5 
     ## Variable importance mode:         impurity 
-    ## OOB prediction error (MSE):       949.4359 
-    ## R squared (OOB):                  0.9970912
+    ## OOB prediction error (MSE):       938.857 
+    ## R squared (OOB):                  0.9971208
 
 this is a highly accurate model with R-square above 0.99 (but with an RMSE of 30 m!) and where the most important bands are NED and AW3D30 elevation maps:
 
@@ -482,11 +489,11 @@ print(t(data.frame(xl1.P[order(unlist(xl1.P), decreasing=TRUE)])))
 ```
 
     ##                                     [,1]
-    ## Boulder_NED_30m.tif           7210460521
-    ## Boulder_AW3D30s_30m_v1802.tif 6725254555
-    ## NDVI                           533254965
-    ## Boulder_HH_30m.tif             284391705
-    ## Boulder_HV_30m.tif             253304445
+    ## Boulder_AW3D30s_30m_v1802.tif 7357658153
+    ## Boulder_NED_30m.tif           6641115963
+    ## NDVI                           480612082
+    ## Boulder_HH_30m.tif             279944857
+    ## Boulder_HV_30m.tif             229678974
 
 which was expected. Note that AW3D30s seems to come somewhat closer to the training points. To produce a combined mDLSM we run the fitted model at pixels of interest. To speed up the prediction we will first prepare a tiling system for this area:
 
@@ -657,7 +664,7 @@ unlink_.gislock()
 remove_GISRC()
 ```
 
-GRASS 7 is also fairly efficient with processing large rasters (Neteler, 2015), even though parallelization needs to be implemented also with tiling.
+GRASS 7 is also fairly efficient with processing large rasters (Neteler, 2015), even though parallelization needs to be implemented also with tiling. In fact, GRASS GIS can be regarded as an environment that provides applications (commands/modules), which means that, by extending the code described above one should be able to run several GRASS commands in parallel.
 
 References
 ----------
