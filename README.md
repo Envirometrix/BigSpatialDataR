@@ -373,7 +373,7 @@ In addition to the two elevation products, we can also add radar images of the a
 
     mDLSM = f (NED, AW3D30, NDVI, HH/HV)
 
-where `NED` is the National Elevation Dataset, `AW3D30` is the ALOS digital surface model, `NDVI` is the Landsat based NDVI and `HH/HV` are the PALSAR-2 radar images at 20 m resolution (<span class="citeproc-not-found" data-reference-id="shimada2014new">**???**</span>) bands HH (-27.7 5.3 dB) and HV (-35.8 3.0 dB). NDVI images can be used to represent the canopy height and PALSAR-2 radar bands can be used to represent surface roughness, built up objects and bare rock areas.
+where `NED` is the National Elevation Dataset, `AW3D30` is the ALOS digital surface model, `NDVI` is the Landsat based NDVI and `HH/HV` are the PALSAR-2 radar images at 20 m resolution (Shimada et al., 2014) bands HH (-27.7 5.3 dB) and HV (-35.8 3.0 dB). NDVI images can be used to represent the canopy height (the higher the NDVI the higher the chance that the canopy is high) and PALSAR-2 radar bands can be used to represent surface roughness, built up objects and bare rock areas.
 
 We start by loading the training / reference points that have been derived from the [GLAS/ICESat mission](https://doi.org/10.5067/ICESAT/GLAS/DATA109) and the LiDAR based cloud data (downloaded from OpenTopography.org project and imported to R using the lidR package using the function from above):
 
@@ -459,7 +459,7 @@ summary(sel.na)
 ```
 
     ##    Mode   FALSE    TRUE 
-    ## logical    2632   46017
+    ## logical    2631   46018
 
 ``` r
 m.DLSM <- ranger(fm.DLSM, rm.DLSM[sel.na,], num.trees=85, importance="impurity")
@@ -473,13 +473,13 @@ m.DLSM
     ## 
     ## Type:                             Regression 
     ## Number of trees:                  85 
-    ## Sample size:                      46017 
+    ## Sample size:                      46018 
     ## Number of independent variables:  5 
     ## Mtry:                             2 
     ## Target node size:                 5 
     ## Variable importance mode:         impurity 
-    ## OOB prediction error (MSE):       938.857 
-    ## R squared (OOB):                  0.9971208
+    ## OOB prediction error (MSE):       944.9023 
+    ## R squared (OOB):                  0.9970766
 
 this is a highly accurate model with R-square above 0.99 (but with an RMSE of 30 m!) and where the most important bands are NED and AW3D30 elevation maps:
 
@@ -489,11 +489,11 @@ print(t(data.frame(xl1.P[order(unlist(xl1.P), decreasing=TRUE)])))
 ```
 
     ##                                     [,1]
-    ## Boulder_AW3D30s_30m_v1802.tif 7357658153
-    ## Boulder_NED_30m.tif           6641115963
-    ## NDVI                           480612082
-    ## Boulder_HH_30m.tif             279944857
-    ## Boulder_HV_30m.tif             229678974
+    ## Boulder_NED_30m.tif           7794547483
+    ## Boulder_AW3D30s_30m_v1802.tif 6290353304
+    ## NDVI                           371621586
+    ## Boulder_HV_30m.tif             211955744
+    ## Boulder_HH_30m.tif             206007196
 
 which was expected. Note that AW3D30s seems to come somewhat closer to the training points. To produce a combined mDLSM we run the fitted model at pixels of interest. To speed up the prediction we will first prepare a tiling system for this area:
 
@@ -680,3 +680,5 @@ Kirches, G., Brockmann, C., Boettcher, M., Peters, M., Bontemps, S., Lamarche, C
 Mitchell, T., & GDAL Developers. (2014). *Geospatial Power Tools: GDAL Raster & Vector Commands*. Locate Press.
 
 Neteler, M. (2015). GRASS GIS 7: efficiently processing big geospatial data. In *FOSDEM 2015* (p. 1).
+
+Shimada, M., Itoh, T., Motooka, T., Watanabe, M., Shiraishi, T., Thapa, R., & Lucas, R. (2014). New global forest/non-forest maps from alos palsar data (2007–2010). *Remote Sensing of Environment*, *155*, 13–31.

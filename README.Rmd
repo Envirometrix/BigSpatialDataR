@@ -226,7 +226,7 @@ In addition to the two elevation products, we can also add radar images of the a
 mDLSM = f (NED, AW3D30, NDVI, HH/HV)
 ```
 
-where `NED` is the National Elevation Dataset, `AW3D30` is the ALOS digital surface model, `NDVI` is the Landsat based NDVI and `HH/HV` are the PALSAR-2 radar images at 20 m resolution [@shimada2014new] bands HH (-27.7 5.3 dB) and HV (-35.8 3.0 dB). NDVI images can be used to represent the canopy height and PALSAR-2 radar bands can be used to represent surface roughness, built up objects and bare rock areas.
+where `NED` is the National Elevation Dataset, `AW3D30` is the ALOS digital surface model, `NDVI` is the Landsat based NDVI and `HH/HV` are the PALSAR-2 radar images at 20 m resolution [@shimada2014new] bands HH (-27.7 5.3 dB) and HV (-35.8 3.0 dB). NDVI images can be used to represent the canopy height (the higher the NDVI the higher the chance that the canopy is high) and PALSAR-2 radar bands can be used to represent surface roughness, built up objects and bare rock areas.
 
 We start by loading the training / reference points that have been derived from the [GLAS/ICESat mission](https://doi.org/10.5067/ICESAT/GLAS/DATA109) and the LiDAR based cloud data (downloaded from OpenTopography.org project and imported to R using the lidR package using the function from above):
 
