@@ -116,6 +116,8 @@ tile.lst <- getSpatialTiles(obj, block.x=.5, return.SpatialPolygons=TRUE)
 tile.tbl <- getSpatialTiles(obj, block.x=.5, return.SpatialPolygons=FALSE)
 tile.tbl$ID <- as.character(1:nrow(tile.tbl))
 head(tile.tbl)
+tile.pol <- SpatialPolygonsDataFrame(tile.lst, tile.tbl, match.ID = FALSE)
+writeOGR(tile.pol, "./data/tiling_50km_Indonesia.shp", "tiling_50km_Indonesia", driver="ESRI Shapefile")
 ```
 
 this gives a total of 550 tiles: 

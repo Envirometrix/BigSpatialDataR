@@ -459,7 +459,7 @@ summary(sel.na)
 ```
 
     ##    Mode   FALSE    TRUE 
-    ## logical    2631   46018
+    ## logical    2633   46016
 
 ``` r
 m.DLSM <- ranger(fm.DLSM, rm.DLSM[sel.na,], num.trees=85, importance="impurity")
@@ -473,13 +473,13 @@ m.DLSM
     ## 
     ## Type:                             Regression 
     ## Number of trees:                  85 
-    ## Sample size:                      46018 
+    ## Sample size:                      46016 
     ## Number of independent variables:  5 
     ## Mtry:                             2 
     ## Target node size:                 5 
     ## Variable importance mode:         impurity 
-    ## OOB prediction error (MSE):       944.9023 
-    ## R squared (OOB):                  0.9970766
+    ## OOB prediction error (MSE):       944.2905 
+    ## R squared (OOB):                  0.9970986
 
 this is a highly accurate model with R-square above 0.99 (but with an RMSE of 30 m!) and where the most important bands are NED and AW3D30 elevation maps:
 
@@ -489,11 +489,11 @@ print(t(data.frame(xl1.P[order(unlist(xl1.P), decreasing=TRUE)])))
 ```
 
     ##                                     [,1]
-    ## Boulder_NED_30m.tif           7794547483
-    ## Boulder_AW3D30s_30m_v1802.tif 6290353304
-    ## NDVI                           371621586
-    ## Boulder_HV_30m.tif             211955744
-    ## Boulder_HH_30m.tif             206007196
+    ## Boulder_AW3D30s_30m_v1802.tif 7364842510
+    ## Boulder_NED_30m.tif           6737656026
+    ## NDVI                           435547908
+    ## Boulder_HH_30m.tif             267335902
+    ## Boulder_HV_30m.tif             166617627
 
 which was expected. Note that AW3D30s seems to come somewhat closer to the training points. To produce a combined mDLSM we run the fitted model at pixels of interest. To speed up the prediction we will first prepare a tiling system for this area:
 
