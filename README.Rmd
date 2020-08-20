@@ -33,7 +33,7 @@ Processing large spatial data in a programming environment such as R is not triv
 In addition to R, we also provide some code examples of how to use SAGA GIS, GRASS GIS and GDAL in parallel. For more information, see also these [lecture notes](./tex/Processing_large_rasters_R.pdf). Packages used in this tutorial include:
 
 ```{r}
-list.of.packages <- c("plyr", "parallel", "GSIF", "ranger", "raster", 
+list.of.packages <- c("plyr", "parallel", "landmap", "ranger", "raster", 
                       "rgdal", "rgrass7", "snowfall", "lidR", "knitr", "tmap")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
@@ -106,7 +106,8 @@ Next, we prepare a tiling system to run processing in parallel:
 
 ```{r}
 library(raster)
-library(GSIF)
+if(require(landmap)){ devtools::install_github("envirometrix/landmap") }
+library(landmap)
 ## check whether the maps match perfectly to the same grid:
 x <- raster::stack(paste0("./data/Indonesia_ESA_lcc_300m_", c(2000, 2015), ".tif"))
 ## OK!
@@ -300,7 +301,7 @@ which was expected. Note that AW3D30s seems to come somewhat closer to the train
 
 ```{r}
 objB <- GDALinfo("./data/Boulder_AW3D30s_30m_v1802.tif")
-library(GSIF)
+library(landmap)
 ## tile to 10km blocks:
 tileB.lst <- getSpatialTiles(objB, block.x=1e4, return.SpatialPolygons=TRUE)
 tileB.tbl <- getSpatialTiles(objB, block.x=1e4, return.SpatialPolygons=FALSE)
