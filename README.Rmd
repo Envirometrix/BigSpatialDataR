@@ -138,9 +138,6 @@ if("tmap" %in% rownames(installed.packages()) == TRUE){
 }
 ```
 
-```{r htop-8-cores, echo=FALSE, fig.cap="Fully parallelized computing using 8 cores. Displayed using htop software.", out.width="100%"}
-```
-
 
 Note that size of tiles needs to be carefully planned so that each tile can still be loaded in memory. If a HPC system has more cores, then in average size of tiles in memory needs to be smaller otherwise RAM might still be a problem for achieving fully parallelized computing. 
 
@@ -170,9 +167,11 @@ sfStop()
 ## takes few seconds depending on the number of cores
 ```
 
+
 ```{r htop-8-cores, echo=FALSE, fig.cap="Fully parallelized computing using 8 cores. Displayed using htop software.", out.width="100%"}
 knitr::include_graphics("./tex/htop_8_cores.png")
 ```
+
 
 This shows that the script has generated some 295 tiles in total. Note that if all land cover classes are unchanged, then there is no need to generate a Geotiff so that the total number of tiles is much smaller than what we get with `getSpatialTiles` function:
 

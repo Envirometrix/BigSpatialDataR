@@ -263,19 +263,6 @@ if("tmap" %in% rownames(installed.packages()) == TRUE){
 ![Tiling system based on the 50 km by 50 km
 tiles.](README_files/figure-gfm/plot-tiles-1.png)
 
-<div class="figure">
-
-<img src="./tex/htop_8_cores.png" alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
-
-<p class="caption">
-
-Fully parallelized computing using 8 cores. Displayed using htop
-software.
-
-</p>
-
-</div>
-
 Note that size of tiles needs to be carefully planned so that each tile
 can still be loaded in memory. If a HPC system has more cores, then in
 average size of tiles in memory needs to be smaller otherwise RAM might
@@ -596,7 +583,7 @@ summary(sel.na)
 ```
 
     ##    Mode   FALSE    TRUE 
-    ## logical    2632   46017
+    ## logical    2633   46016
 
 ``` r
 m.DLSM <- ranger(fm.DLSM, rm.DLSM[sel.na,], num.trees=85, importance="impurity")
@@ -610,14 +597,14 @@ m.DLSM
     ## 
     ## Type:                             Regression 
     ## Number of trees:                  85 
-    ## Sample size:                      46017 
+    ## Sample size:                      46016 
     ## Number of independent variables:  5 
     ## Mtry:                             2 
     ## Target node size:                 5 
     ## Variable importance mode:         impurity 
     ## Splitrule:                        variance 
-    ## OOB prediction error (MSE):       946.9526 
-    ## R squared (OOB):                  0.9971026
+    ## OOB prediction error (MSE):       942.1787 
+    ## R squared (OOB):                  0.9971129
 
 this is a highly accurate model with R-square above 0.99 (but with an
 RMSE of 30 m\!) and where the most important bands are NED and AW3D30
@@ -629,11 +616,11 @@ print(t(data.frame(xl1.P[order(unlist(xl1.P), decreasing=TRUE)])))
 ```
 
     ##                                     [,1]
-    ## Boulder_NED_30m.tif           7216329780
-    ## Boulder_AW3D30s_30m_v1802.tif 6812463105
-    ## NDVI                           490031172
-    ## Boulder_HH_30m.tif             264330250
-    ## Boulder_HV_30m.tif             240262428
+    ## Boulder_AW3D30s_30m_v1802.tif 8155263931
+    ## Boulder_NED_30m.tif           6092401807
+    ## NDVI                           386624822
+    ## Boulder_HV_30m.tif             212336885
+    ## Boulder_HH_30m.tif             177559638
 
 which was expected. Note that AW3D30s seems to come somewhat closer to
 the training points. To produce a combined mDLSM we run the fitted model
