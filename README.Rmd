@@ -34,7 +34,7 @@ In addition to R, we also provide some code examples of how to use SAGA GIS, GRA
 
 ```{r, echo=FALSE}
 list.of.packages <- c("plyr", "parallel", "landmap", "ranger", "raster", 
-                      "rgdal", "rgrass7", "snowfall", "lidR", "knitr") ## "tmap"
+                      "rgdal", "rgrass7", "snowfall", "lidR", "knitr", "tmap") 
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
 ```
@@ -128,8 +128,9 @@ this gives a total of 550 tiles:
 ```{r plot-tiles, echo=TRUE, fig.width=5, fig.cap="Tiling system based on the 50 km by 50 km tiles."}
 te <- as.vector(raster::extent(x))
 if("tmap" %in% rownames(installed.packages()) == TRUE){ 
+  library(tmap)
   data("World")
-  tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="longlat") +
+  tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="EPSG:4326") +
     tm_polygons() +
     tm_shape(as(tile.lst, "SpatialLines")) + tm_lines()
 } else {
@@ -272,9 +273,14 @@ cov.lst = c("Boulder_AW3D30s_30m_v1802.tif",
             "Boulder_HH_30m.tif", "Boulder_HV_30m.tif")
 xB <- raster::stack(paste0("./data/", cov.lst))
 ## all covariates can be stacked!
-ov.cov <- parallel::mclapply(cov.lst, function(i){ 
+if(.Platform$OS.type == "windows"){
+  ov.cov <- lapply(cov.lst, function(i){ 
+                  raster::extract(raster(paste0("./data/", i)), pnt.all) })
+} else {
+  ov.cov <- parallel::mclapply(cov.lst, function(i){ 
                   raster::extract(raster(paste0("./data/", i)), pnt.all) }, 
-                  mc.cores = detectCores())
+                  mc.cores = parallel::detectCores())
+}
 ov.cov <- data.frame(ov.cov)
 names(ov.cov) = cov.lst
 ```

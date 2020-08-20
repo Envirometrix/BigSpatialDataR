@@ -3,6 +3,13 @@ GIS + GRASS GIS (tutorial)
 ================
 Hengl, T. (<tom.hengl@opengeohub.org>)
 
+  - [Introduction](#introduction)
+  - [Deriving differences in land cover using large
+    GeoTIFFs](#deriving-differences-in-land-cover-using-large-geotiffs)
+  - [DEM analysis using tiling and
+    parallelization](#dem-analysis-using-tiling-and-parallelization)
+  - [References](#references)
+
 | <a href="https://github.com/thengl"><img src="https://avatars0.githubusercontent.com/u/640722?s=460&v=4" height="100" alt="Tomislav Hengl"></a> |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 
@@ -54,22 +61,24 @@ library(rgdal)
 
     ## Loading required package: sp
 
-    ## rgdal: version: 1.4-8, (SVN revision 845)
-    ##  Geospatial Data Abstraction Library extensions to R successfully loaded
-    ##  Loaded GDAL runtime: GDAL 3.0.4, released 2020/01/28
-    ##  Path to GDAL shared files: 
-    ##  GDAL binary built with GEOS: TRUE 
-    ##  Loaded PROJ.4 runtime: Rel. 7.0.0, March 1st, 2020, [PJ_VERSION: 700]
-    ##  Path to PROJ.4 shared files: (autodetected)
-    ##  Linking to sp version: 1.3-1
+    ## rgdal: version: 1.5-16, (SVN revision 1050)
+    ## Geospatial Data Abstraction Library extensions to R successfully loaded
+    ## Loaded GDAL runtime: GDAL 3.0.4, released 2020/01/28
+    ## Path to GDAL shared files: C:/Users/tomhe/Documents/R/win-library/4.0/rgdal/gdal
+    ## GDAL binary built with GEOS: TRUE 
+    ## Loaded PROJ runtime: Rel. 6.3.1, February 10th, 2020, [PJ_VERSION: 631]
+    ## Path to PROJ shared files: C:/Users/tomhe/Documents/R/win-library/4.0/rgdal/proj
+    ## Linking to sp version:1.4-2
+    ## To mute warnings of possible GDAL/OSR exportToProj4() degradation,
+    ## use options("rgdal_show_exportToProj4_warnings"="none") before loading rgdal.
 
 ``` r
 library(raster)
 GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif")
 ```
 
-    ## Warning in GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif"): statistics
-    ## not supported by this driver
+    ## Warning in GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif"): statistics not
+    ## supported by this driver
 
     ## rows        5789 
     ## columns     5280 
@@ -148,10 +157,10 @@ str(leg)
 
     ## 'data.frame':    38 obs. of  8 variables:
     ##  $ Value      : int  0 10 11 12 20 30 40 50 60 61 ...
-    ##  $ AGG_NAME   : Factor w/ 8 levels "Artificial areas",..: 5 3 3 3 3 3 6 4 4 4 ...
+    ##  $ AGG_NAME   : chr  "No Data" "Cropland" "Cropland" "Cropland" ...
     ##  $ Value_AGG_w: int  0 3 3 3 3 3 2 1 1 1 ...
     ##  $ Value_AGG  : int  5 3 3 3 3 3 6 4 4 4 ...
-    ##  $ NAME       : Factor w/ 38 levels "Bare areas","Consolidated bare areas",..: 14 4 8 35 3 10 12 25 23 22 ...
+    ##  $ NAME       : chr  "No Data" "Cropland, rainfed" "Herbaceous cover" "Tree or shrub cover" ...
     ##  $ R          : int  0 255 255 255 170 220 200 0 0 0 ...
     ##  $ G          : int  0 255 255 255 240 240 200 100 160 160 ...
     ##  $ B          : int  0 100 100 0 240 100 100 0 0 0 ...
@@ -195,8 +204,8 @@ x <- raster::stack(paste0("./data/Indonesia_ESA_lcc_300m_", c(2000, 2015), ".tif
 obj <- GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif")
 ```
 
-    ## Warning in GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif"): statistics
-    ## not supported by this driver
+    ## Warning in GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif"): statistics not
+    ## supported by this driver
 
 ``` r
 ## tile to 50km blocks:
@@ -239,8 +248,9 @@ this gives a total of 550 tiles:
 ``` r
 te <- as.vector(raster::extent(x))
 if("tmap" %in% rownames(installed.packages()) == TRUE){ 
+  library(tmap)
   data("World")
-  tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="longlat") +
+  tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="EPSG:4326") +
     tm_polygons() +
     tm_shape(as(tile.lst, "SpatialLines")) + tm_lines()
 } else {
@@ -248,10 +258,23 @@ if("tmap" %in% rownames(installed.packages()) == TRUE){
 }
 ```
 
-![Tiling system based on the 50 km by 50 km
-tiles.](./README_files/figure-markdown_github/plot-tiles-1.png)
+    ## Linking to GEOS 3.8.0, GDAL 3.0.4, PROJ 6.3.1
 
-<img src="./tex/htop_8_cores.png" title="Fully parallelized computing using 8 cores. Displayed using htop software." alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
+![Tiling system based on the 50 km by 50 km
+tiles.](README_files/figure-gfm/plot-tiles-1.png)
+
+<div class="figure">
+
+<img src="./tex/htop_8_cores.png" alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
+
+<p class="caption">
+
+Fully parallelized computing using 8 cores. Displayed using htop
+software.
+
+</p>
+
+</div>
 
 Note that size of tiles needs to be carefully planned so that each tile
 can still be loaded in memory. If a HPC system has more cores, then in
@@ -293,14 +316,13 @@ library(snowfall)
 sfInit(parallel=TRUE, cpus=parallel::detectCores())
 ```
 
-    ## Warning in searchCommandline(parallel, cpus = cpus, type = type,
-    ## socketHosts = socketHosts, : Unknown option on commandline:
-    ## rmarkdown::render('/home/tomislav/Documents/git/BigSpatialDataR/
-    ## README.Rmd',~+~~+~encoding~+~
+    ## Warning in searchCommandline(parallel, cpus = cpus, type = type, socketHosts
+    ## = socketHosts, : Unknown option on commandline: rmarkdown::render('D:/git/
+    ## BigSpatialDataR/README.Rmd', encoding
 
-    ## R Version:  R version 3.5.3 (2019-03-11)
+    ## R Version:  R version 4.0.2 (2020-06-22)
 
-    ## snowfall 1.84-6.1 initialized (using snow 0.4-3): parallel execution on 32 CPUs.
+    ## snowfall 1.84-6.1 initialized (using snow 0.4-3): parallel execution on 12 CPUs.
 
 ``` r
 sfExport("make_LC_tiles", "tile.tbl", "leg.lcc")
@@ -332,7 +354,18 @@ sfStop()
 ## takes few seconds depending on the number of cores
 ```
 
-<img src="./tex/htop_8_cores.png" title="Fully parallelized computing using 8 cores. Displayed using htop software." alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
+<div class="figure">
+
+<img src="./tex/htop_8_cores.png" alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
+
+<p class="caption">
+
+Fully parallelized computing using 8 cores. Displayed using htop
+software.
+
+</p>
+
+</div>
 
 This shows that the script has generated some 295 tiles in total. Note
 that if all land cover classes are unchanged, then there is no need to
@@ -344,7 +377,7 @@ t.lst <- list.files("./tiled", pattern=".tif", full.names=TRUE)
 str(t.lst)
 ```
 
-    ##  chr [1:295] "./tiled/T_100.tif" "./tiled/T_101.tif" ...
+    ##  chr [1:295] "./tiled/T_100.tif" "./tiled/T_101.tif" "./tiled/T_102.tif" ...
 
 From the list of files we can build a mosaic using GDAL and save it to
 disk (Mitchell & GDAL Developers, 2014):
@@ -354,6 +387,11 @@ out.tmp <- "./data/t_list.txt"
 vrt.tmp <- "./data/indonesia.vrt"
 cat(t.lst, sep="\n", file=out.tmp)
 system(paste0('gdalbuildvrt -input_file_list ', out.tmp, ' ', vrt.tmp))
+```
+
+    ## [1] 0
+
+``` r
 system(paste0('gdalwarp ', vrt.tmp, 
              ' \"./data/Indonesia_ESA_lcc_300m_change.tif\" ', 
              '-ot \"Int16\" -dstnodata \"-32767\" -co \"BIGTIFF=YES\" ',  
@@ -361,20 +399,32 @@ system(paste0('gdalwarp ', vrt.tmp,
              '-r \"near\" -wo \"NUM_THREADS=ALL_CPUS\"'))
 ```
 
+    ## [1] 1
+
 ``` r
 raster("./data/Indonesia_ESA_lcc_300m_change.tif")
 ```
 
-    ## class       : RasterLayer 
-    ## dimensions  : 5760, 5280, 30412800  (nrow, ncol, ncell)
-    ## resolution  : 0.002083294, 0.002083294  (x, y)
-    ## extent      : 108.7, 119.6998, -4.580189, 7.419585  (xmin, xmax, ymin, ymax)
-    ## coord. ref. : +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 
-    ## data source : /home/tomislav/Documents/git/BigSpatialDataR/data/Indonesia_ESA_lcc_300m_change.tif 
-    ## names       : Indonesia_ESA_lcc_300m_change 
-    ## values      : -32768, 32767  (min, max)
+    ## class      : RasterLayer 
+    ## dimensions : 5760, 5280, 30412800  (nrow, ncol, ncell)
+    ## resolution : 0.002083294, 0.002083294  (x, y)
+    ## extent     : 108.7, 119.6998, -4.580189, 7.419585  (xmin, xmax, ymin, ymax)
+    ## crs        : +proj=longlat +datum=WGS84 +no_defs 
+    ## source     : D:/git/BigSpatialDataR/data/Indonesia_ESA_lcc_300m_change.tif 
+    ## names      : Indonesia_ESA_lcc_300m_change 
+    ## values     : -32768, 32767  (min, max)
 
-<img src="./tex/Indonesia_ESA_lcc_300m_change_preview.jpg" title="Land cover class changes (2000 to 2015) for Kalimantan." alt="Land cover class changes (2000 to 2015) for Kalimantan." width="100%" />
+<div class="figure">
+
+<img src="./tex/Indonesia_ESA_lcc_300m_change_preview.jpg" alt="Land cover class changes (2000 to 2015) for Kalimantan." width="100%" />
+
+<p class="caption">
+
+Land cover class changes (2000 to 2015) for Kalimantan.
+
+</p>
+
+</div>
 
 Note that, to properly optimize computing, one might have to go through
 several iterations of improving the function and the tiling system.
@@ -489,9 +539,9 @@ library(parallel)
     ## The following objects are masked from 'package:snow':
     ## 
     ##     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
-    ##     clusterExport, clusterMap, clusterSplit, makeCluster,
-    ##     parApply, parCapply, parLapply, parRapply, parSapply,
-    ##     splitIndices, stopCluster
+    ##     clusterExport, clusterMap, clusterSplit, makeCluster, parApply,
+    ##     parCapply, parLapply, parRapply, parSapply, splitIndices,
+    ##     stopCluster
 
 ``` r
 library(raster)
@@ -501,9 +551,14 @@ cov.lst = c("Boulder_AW3D30s_30m_v1802.tif",
             "Boulder_HH_30m.tif", "Boulder_HV_30m.tif")
 xB <- raster::stack(paste0("./data/", cov.lst))
 ## all covariates can be stacked!
-ov.cov <- parallel::mclapply(cov.lst, function(i){ 
+if(.Platform$OS.type == "windows"){
+  ov.cov <- lapply(cov.lst, function(i){ 
+                  raster::extract(raster(paste0("./data/", i)), pnt.all) })
+} else {
+  ov.cov <- parallel::mclapply(cov.lst, function(i){ 
                   raster::extract(raster(paste0("./data/", i)), pnt.all) }, 
-                  mc.cores = detectCores())
+                  mc.cores = parallel::detectCores())
+}
 ov.cov <- data.frame(ov.cov)
 names(ov.cov) = cov.lst
 ```
@@ -561,8 +616,8 @@ m.DLSM
     ## Target node size:                 5 
     ## Variable importance mode:         impurity 
     ## Splitrule:                        variance 
-    ## OOB prediction error (MSE):       955.4671 
-    ## R squared (OOB):                  0.9970578
+    ## OOB prediction error (MSE):       946.9526 
+    ## R squared (OOB):                  0.9971026
 
 this is a highly accurate model with R-square above 0.99 (but with an
 RMSE of 30 m\!) and where the most important bands are NED and AW3D30
@@ -574,17 +629,16 @@ print(t(data.frame(xl1.P[order(unlist(xl1.P), decreasing=TRUE)])))
 ```
 
     ##                                     [,1]
-    ## Boulder_AW3D30s_30m_v1802.tif 8087580718
-    ## Boulder_NED_30m.tif           6029087221
-    ## NDVI                           407319776
-    ## Boulder_HH_30m.tif             221174694
-    ## Boulder_HV_30m.tif             197398564
+    ## Boulder_NED_30m.tif           7216329780
+    ## Boulder_AW3D30s_30m_v1802.tif 6812463105
+    ## NDVI                           490031172
+    ## Boulder_HH_30m.tif             264330250
+    ## Boulder_HV_30m.tif             240262428
 
 which was expected. Note that AW3D30s seems to come somewhat closer to
 the training points. To produce a combined mDLSM we run the fitted model
 at pixels of interest. To speed up the prediction we will first prepare
-a tiling system for this
-    area:
+a tiling system for this area:
 
 ``` r
 objB <- GDALinfo("./data/Boulder_AW3D30s_30m_v1802.tif")
@@ -615,8 +669,7 @@ tileB.tbl$ID <- as.character(1:nrow(tileB.tbl))
 ```
 
 next we prepare a function that we can use to create tiled objects and
-that we can then use to predict values in
-parallel:
+that we can then use to predict values in parallel:
 
 ``` r
 predict_mDLSM <- function(m.DLSM, i, tileB.tbl, cov.lst, in.path="./data/", out.path="./tiledB/"){
@@ -655,12 +708,11 @@ library(snowfall)
 sfInit(parallel=TRUE, cpus=parallel::detectCores())
 ```
 
-    ## Warning in searchCommandline(parallel, cpus = cpus, type = type,
-    ## socketHosts = socketHosts, : Unknown option on commandline:
-    ## rmarkdown::render('/home/tomislav/Documents/git/BigSpatialDataR/
-    ## README.Rmd',~+~~+~encoding~+~
+    ## Warning in searchCommandline(parallel, cpus = cpus, type = type, socketHosts
+    ## = socketHosts, : Unknown option on commandline: rmarkdown::render('D:/git/
+    ## BigSpatialDataR/README.Rmd', encoding
 
-    ## snowfall 1.84-6.1 initialized (using snow 0.4-3): parallel execution on 32 CPUs.
+    ## snowfall 1.84-6.1 initialized (using snow 0.4-3): parallel execution on 12 CPUs.
 
 ``` r
 sfExport("predict_mDLSM", "m.DLSM", "tileB.tbl", "cov.lst")
@@ -710,7 +762,21 @@ if(!file.exists("./data/Boulder_mDLSM_30m.tif")){
 }
 ```
 
-<img src="./tex/comprison_shading.png" title="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points." alt="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points." width="100%" />
+<div class="figure">
+
+<img src="./tex/comprison_shading.png" alt="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points." width="100%" />
+
+<p class="caption">
+
+Comparison of the original AW3D30 vs the predicted Land Surface Model
+(mDLSM). Fitting a model to predict land surface model seems to solve
+the problem of artifacts / striping effects, but then it can introduce
+local artifacts in areas of higher vegetation and under-represented by
+training points.
+
+</p>
+
+</div>
 
 The resulting product seems to be satisfactory except in the eastern
 side of the study areas (plains) where RF seems to create many
@@ -792,9 +858,10 @@ doi:[10.5194/gmd-8-1991-2015](https://doi.org/10.5194/gmd-8-1991-2015)
 
 <div id="ref-Hengl2018RFsp">
 
-Hengl, T., Nussbaum, M., Wright, M. N., Heuvelink, G. B., & Gräler, B.
-(2018). Random forest as a generic framework for predictive modeling of
-spatial and spatio-temporal variables. *PeerJ Preprints*, *6*, e26693v3.
+Hengl, T., Nussbaum, M., Wright, M. N., Heuvelink, G. B. M., & Gräler,
+B. (2018). Random forest as a generic framework for predictive modeling
+of spatial and spatio-temporal variables. *PeerJ Preprints*, *6*,
+e26693v3.
 doi:[10.7287/peerj.preprints.26693v3](https://doi.org/10.7287/peerj.preprints.26693v3)
 
 </div>
