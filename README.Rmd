@@ -1,6 +1,6 @@
 ---
 title: "Processing Large Rasters using Tiling and Parallelization: An R + SAGA GIS + GRASS GIS (tutorial)"
-author: "Hengl, T."
+author: "Hengl, T. (tom.hengl@opengeohub.org)"
 output: 
   github_document:
     toc: true
@@ -32,9 +32,9 @@ Processing large spatial data in a programming environment such as R is not triv
 
 In addition to R, we also provide some code examples of how to use SAGA GIS, GRASS GIS and GDAL in parallel. For more information, see also these [lecture notes](./tex/Processing_large_rasters_R.pdf). Packages used in this tutorial include:
 
-```{r}
+```{r, echo=FALSE}
 list.of.packages <- c("plyr", "parallel", "landmap", "ranger", "raster", 
-                      "rgdal", "rgrass7", "snowfall", "lidR", "knitr", "tmap")
+                      "rgdal", "rgrass7", "snowfall", "lidR", "knitr") ## "tmap"
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
 ```
@@ -106,7 +106,7 @@ Next, we prepare a tiling system to run processing in parallel:
 
 ```{r}
 library(raster)
-if(require(landmap)){ devtools::install_github("envirometrix/landmap") }
+if(!require("landmap")){ devtools::install_github("envirometrix/landmap") }
 library(landmap)
 ## check whether the maps match perfectly to the same grid:
 x <- raster::stack(paste0("./data/Indonesia_ESA_lcc_300m_", c(2000, 2015), ".tif"))
@@ -118,19 +118,28 @@ tile.tbl <- getSpatialTiles(obj, block.x=.5, return.SpatialPolygons=FALSE)
 tile.tbl$ID <- as.character(1:nrow(tile.tbl))
 head(tile.tbl)
 tile.pol <- SpatialPolygonsDataFrame(tile.lst, tile.tbl, match.ID = FALSE)
-writeOGR(tile.pol, "./data/tiling_50km_Indonesia.shp", "tiling_50km_Indonesia", driver="ESRI Shapefile")
+if(!file.exists("./data/tiling_50km_Indonesia.shp")){
+  writeOGR(tile.pol, "./data/tiling_50km_Indonesia.shp", "tiling_50km_Indonesia", driver="ESRI Shapefile")
+}
 ```
 
 this gives a total of 550 tiles: 
 
 ```{r plot-tiles, echo=TRUE, fig.width=5, fig.cap="Tiling system based on the 50 km by 50 km tiles."}
-te <- as.vector(extent(x))
-library(tmap)
-data("World")
-tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="longlat") +
-  tm_polygons() +
-  tm_shape(as(tile.lst, "SpatialLines")) + tm_lines()
+te <- as.vector(raster::extent(x))
+if("tmap" %in% rownames(installed.packages()) == TRUE){ 
+  data("World")
+  tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="longlat") +
+    tm_polygons() +
+    tm_shape(as(tile.lst, "SpatialLines")) + tm_lines()
+} else {
+  knitr::include_graphics("./README_files/figure-markdown_github/plot-tiles-1.png")
+}
 ```
+
+```{r htop-8-cores, echo=FALSE, fig.cap="Fully parallelized computing using 8 cores. Displayed using htop software.", out.width="100%"}
+```
+
 
 Note that size of tiles needs to be carefully planned so that each tile can still be loaded in memory. If a HPC system has more cores, then in average size of tiles in memory needs to be smaller otherwise RAM might still be a problem for achieving fully parallelized computing. 
 
@@ -357,16 +366,18 @@ sfStop()
 This produces a merged digital land surface model that can be further used for spatial modeling:
 
 ```{r}
-tB.lst <- list.files("./tiledB", pattern=".tif", full.names=TRUE)
-outB.tmp <- "./data/b_list.txt"
-vrtB.tmp <- "./data/boulder.vrt"
-cat(tB.lst, sep="\n", file=outB.tmp)
-system(paste0('gdalbuildvrt -input_file_list ', outB.tmp, ' ', vrtB.tmp))
-system(paste0('gdalwarp ', vrtB.tmp, 
-             ' \"./data/Boulder_mDLSM_30m.tif\" ', 
-             '-ot \"Int16\" -dstnodata \"-32767\" -co \"BIGTIFF=YES\" ',  
-             '-multi -wm 2000 -co \"COMPRESS=DEFLATE\" -overwrite ',
-             '-r \"near\" -wo \"NUM_THREADS=ALL_CPUS\"'))
+if(!file.exists("./data/Boulder_mDLSM_30m.tif")){
+  tB.lst <- list.files("./tiledB", pattern=".tif", full.names=TRUE)
+  outB.tmp <- "./data/b_list.txt"
+  vrtB.tmp <- "./data/boulder.vrt"
+  cat(tB.lst, sep="\n", file=outB.tmp)
+  system(paste0('gdalbuildvrt -input_file_list ', outB.tmp, ' ', vrtB.tmp))
+  system(paste0('gdalwarp ', vrtB.tmp, 
+               ' \"./data/Boulder_mDLSM_30m.tif\" ', 
+               '-ot \"Int16\" -dstnodata \"-32767\" -co \"BIGTIFF=YES\" ',  
+               '-multi -wm 2000 -co \"COMPRESS=DEFLATE\" -overwrite ',
+               '-r \"near\" -wo \"NUM_THREADS=ALL_CPUS\"'))
+}
 ```
 
 ```{r comparison-shading, echo=FALSE, fig.cap="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points.", out.width="100%"}

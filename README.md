@@ -1,23 +1,27 @@
-Processing Large Rasters using Tiling and Parallelization: An R + SAGA GIS + GRASS GIS (tutorial)
+Processing Large Rasters using Tiling and Parallelization: An R + SAGA
+GIS + GRASS GIS (tutorial)
 ================
-Hengl, T.
-
--   [Introduction](#introduction)
--   [Deriving differences in land cover using large GeoTIFFs](#deriving-differences-in-land-cover-using-large-geotiffs)
--   [DEM analysis using tiling and parallelization](#dem-analysis-using-tiling-and-parallelization)
--   [References](#references)
+Hengl, T. (<tom.hengl@opengeohub.org>)
 
 | <a href="https://github.com/thengl"><img src="https://avatars0.githubusercontent.com/u/640722?s=460&v=4" height="100" alt="Tomislav Hengl"></a> |
-|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| ----------------------------------------------------------------------------------------------------------------------------------------------- |
 
-------------------------------------------------------------------------
+-----
 
 <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank"><img src="https://i.creativecommons.org/l/by-sa/4.0/88x31.png" alt=""></a>
 
-Introduction
-------------
+## Introduction
 
-Processing large spatial data in a programming environment such as R is not trivial. Even if you use powerful computing infrastructure, it might take careful programming to be able to process large spatial data. The reasons why R has not been recommended as a programming environment for large data were: (a) R does not handle well large objects in the working memory, and (b) for many existing functions parallelization is not implemented automatically but has to be added through additional programming. This tutorial demonstrates how to use R to read, process and create large spatial (raster) data sets. In principle, both examples follow the same systematic approach:
+Processing large spatial data in a programming environment such as R is
+not trivial. Even if you use powerful computing infrastructure, it might
+take careful programming to be able to process large spatial data. The
+reasons why R has not been recommended as a programming environment for
+large data were: (a) R does not handle well large objects in the working
+memory, and (b) for many existing functions parallelization is not
+implemented automatically but has to be added through additional
+programming. This tutorial demonstrates how to use R to read, process
+and create large spatial (raster) data sets. In principle, both examples
+follow the same systematic approach:
 
 1.  prepare a function to run in parallel,
 2.  tile object and estimate processing time,
@@ -25,21 +29,24 @@ Processing large spatial data in a programming environment such as R is not triv
 4.  build a virtual mosaic and final image using GDAL,
 5.  avoid loading any large data in RAM,
 
-In addition to R, we also provide some code examples of how to use SAGA GIS, GRASS GIS and GDAL in parallel. For more information, see also these [lecture notes](./tex/Processing_large_rasters_R.pdf). Packages used in this tutorial include:
+In addition to R, we also provide some code examples of how to use SAGA
+GIS, GRASS GIS and GDAL in parallel. For more information, see also
+these [lecture notes](./tex/Processing_large_rasters_R.pdf). Packages
+used in this tutorial include:
 
-``` r
-list.of.packages <- c("plyr", "parallel", "GSIF", "ranger", "raster", 
-                      "rgdal", "rgrass7", "snowfall", "lidR", "knitr", "tmap")
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages, dependencies = TRUE)
-```
+Note: the processing below is demonstrated using relatively large
+objects and a computer with 8 cores running on Ubuntu 16.04 operating
+system. To install software used in this tutorial and teach your-self
+some initial steps, consider reading [this
+document](https://envirometrix.github.io/PredictiveSoilMapping/soil-covs-chapter.html).
 
-Note: the processing below is demonstrated using relatively large objects and a computer with 8 cores running on Ubuntu 16.04 operating system. To install software used in this tutorial and teach your-self some initial steps, consider reading [this document](https://envirometrix.github.io/PredictiveSoilMapping/soil-covs-chapter.html).
+## Deriving differences in land cover using large GeoTIFFs
 
-Deriving differences in land cover using large GeoTIFFs
--------------------------------------------------------
-
-Land cover maps are often distributed as raster images showing distribution of 5–20 classes (Kirches et al., 2014). Here we use two images of ESA's land cover maps for Indonesia (Kalimantan island) obtained from the [ESA's land cover project website](https://www.esa-landcover-cci.org/?q=node/158) :
+Land cover maps are often distributed as raster images showing
+distribution of 5–20 classes (Kirches et al., 2014). Here we use two
+images of ESA’s land cover maps for Indonesia (Kalimantan island)
+obtained from the [ESA’s land cover project
+website](https://www.esa-landcover-cci.org/?q=node/158) :
 
 ``` r
 library(rgdal)
@@ -47,21 +54,22 @@ library(rgdal)
 
     ## Loading required package: sp
 
-    ## rgdal: version: 1.3-3, (SVN revision 759)
+    ## rgdal: version: 1.4-8, (SVN revision 845)
     ##  Geospatial Data Abstraction Library extensions to R successfully loaded
-    ##  Loaded GDAL runtime: GDAL 2.3.1, released 2018/06/22
-    ##  Path to GDAL shared files: /usr/local/share/gdal
+    ##  Loaded GDAL runtime: GDAL 3.0.4, released 2020/01/28
+    ##  Path to GDAL shared files: 
     ##  GDAL binary built with GEOS: TRUE 
-    ##  Loaded PROJ.4 runtime: Rel. 4.9.2, 08 September 2015, [PJ_VERSION: 492]
+    ##  Loaded PROJ.4 runtime: Rel. 7.0.0, March 1st, 2020, [PJ_VERSION: 700]
     ##  Path to PROJ.4 shared files: (autodetected)
-    ##  Linking to sp version: 1.2-5
+    ##  Linking to sp version: 1.3-1
 
 ``` r
 library(raster)
 GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif")
 ```
 
-    ## Warning: statistics not supported by this driver
+    ## Warning in GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif"): statistics
+    ## not supported by this driver
 
     ## rows        5789 
     ## columns     5280 
@@ -81,13 +89,18 @@ GDALinfo("./data/Indonesia_ESA_lcc_300m_2000.tif")
     ## 1   Byte           TRUE           0          1       5280
     ## apparent band statistics:
     ##   Bmin Bmax Bmean Bsd
-    ## 1    0  255    NA  NA
+    ## 1   10  210    NA  NA
     ## Metadata:
     ## AREA_OR_POINT=Area
 
-this image is about 6000 by 6000 pixels in size hence not huge (for illustration, a land cover map of the whole world at 300 m resolution contains over billion pixels) but it could still be more efficiently processed if we use tiling and parallelization.
+this image is about 6000 by 6000 pixels in size hence not huge (for
+illustration, a land cover map of the whole world at 300 m resolution
+contains over billion pixels) but it could still be more efficiently
+processed if we use tiling and parallelization.
 
-We are interested in deriving the difference in land cover between two periods 2000 and 2015. First, we make a function that can be used to detect differences:
+We are interested in deriving the difference in land cover between two
+periods 2000 and 2015. First, we make a function that can be used to
+detect differences:
 
 ``` r
 make_LC_tiles <- function(i, tile.tbl, 
@@ -120,7 +133,13 @@ make_LC_tiles <- function(i, tile.tbl,
 }
 ```
 
-this function we can run for each element `i` i.e. for smaller blocks and hence can be run in parallel. The function looks for where there has been a change in land cover, and then assign an unique number that identifies change from land cover class `A` to land cover class `B` (hence class `A-B`). We need to prepare a combined legend for combinations of land cover classes. This output legend we can prepare by using:
+this function we can run for each element `i` i.e. for smaller blocks
+and hence can be run in parallel. The function looks for where there has
+been a change in land cover, and then assign an unique number that
+identifies change from land cover class `A` to land cover class `B`
+(hence class `A-B`). We need to prepare a combined legend for
+combinations of land cover classes. This output legend we can prepare by
+using:
 
 ``` r
 leg <- read.csv("./data/ESA_landcover_legend.csv")
@@ -161,14 +180,15 @@ Next, we prepare a tiling system to run processing in parallel:
 
 ``` r
 library(raster)
-library(GSIF)
+if(!require("landmap")){ devtools::install_github("envirometrix/landmap") }
 ```
 
-    ## GSIF version 0.5-4 (2017-04-25)
+    ## Loading required package: landmap
 
-    ## URL: http://gsif.r-forge.r-project.org/
+    ## version: 0.0.3
 
 ``` r
+library(landmap)
 ## check whether the maps match perfectly to the same grid:
 x <- raster::stack(paste0("./data/Indonesia_ESA_lcc_300m_", c(2000, 2015), ".tif"))
 ## OK!
@@ -207,22 +227,39 @@ head(tile.tbl)
     ## 5 110.7 -4.58 111.2 -4.08     5549      960          240          240  5
     ## 6 111.2 -4.58 111.7 -4.08     5549     1200          240          240  6
 
+``` r
+tile.pol <- SpatialPolygonsDataFrame(tile.lst, tile.tbl, match.ID = FALSE)
+if(!file.exists("./data/tiling_50km_Indonesia.shp")){
+  writeOGR(tile.pol, "./data/tiling_50km_Indonesia.shp", "tiling_50km_Indonesia", driver="ESRI Shapefile")
+}
+```
+
 this gives a total of 550 tiles:
 
 ``` r
-te <- as.vector(extent(x))
-library(tmap)
-data("World")
-tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="longlat") +
-  tm_polygons() +
-  tm_shape(as(tile.lst, "SpatialLines")) + tm_lines()
+te <- as.vector(raster::extent(x))
+if("tmap" %in% rownames(installed.packages()) == TRUE){ 
+  data("World")
+  tm_shape(World, xlim=te[c(1,2)], ylim=te[c(3,4)], projection="longlat") +
+    tm_polygons() +
+    tm_shape(as(tile.lst, "SpatialLines")) + tm_lines()
+} else {
+  knitr::include_graphics("./README_files/figure-markdown_github/plot-tiles-1.png")
+}
 ```
 
-![Tiling system based on the 50 km by 50 km tiles.](README_files/figure-markdown_github/plot-tiles-1.png)
+![Tiling system based on the 50 km by 50 km
+tiles.](./README_files/figure-markdown_github/plot-tiles-1.png)
 
-Note that size of tiles needs to be carefully planned so that each tile can still be loaded in memory. If a HPC system has more cores, then in average size of tiles in memory needs to be smaller otherwise RAM might still be a problem for achieving fully parallelized computing.
+<img src="./tex/htop_8_cores.png" title="Fully parallelized computing using 8 cores. Displayed using htop software." alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
 
-We can visualize a single tile just to see that the images has been subset correctly:
+Note that size of tiles needs to be carefully planned so that each tile
+can still be loaded in memory. If a HPC system has more cores, then in
+average size of tiles in memory needs to be smaller otherwise RAM might
+still be a problem for achieving fully parallelized computing.
+
+We can visualize a single tile just to see that the images has been
+subset correctly:
 
 ``` r
 ## plot tile number 124:
@@ -240,9 +277,11 @@ m <- readGDAL("./data/Indonesia_ESA_lcc_300m_2000.tif",
 plot(raster(m), legend=FALSE, col=rgb(leg$R/255, leg$G/255, leg$B/255))
 ```
 
-![Single tile loaded into memory and plotted.](README_files/figure-markdown_github/plot-tile-lcc-1.png)
+![Single tile loaded into memory and
+plotted.](README_files/figure-gfm/plot-tile-lcc-1.png)
 
-We can further use the snowfall package to compute all land cover changes and save them to disk:
+We can further use the snowfall package to compute all land cover
+changes and save them to disk:
 
 ``` r
 library(snowfall)
@@ -256,11 +295,12 @@ sfInit(parallel=TRUE, cpus=parallel::detectCores())
 
     ## Warning in searchCommandline(parallel, cpus = cpus, type = type,
     ## socketHosts = socketHosts, : Unknown option on commandline:
-    ## rmarkdown::render('/data/git/BigSpatialDataR/README.Rmd',~+~~+~encoding~+~
+    ## rmarkdown::render('/home/tomislav/Documents/git/BigSpatialDataR/
+    ## README.Rmd',~+~~+~encoding~+~
 
-    ## R Version:  R version 3.4.3 (2017-11-30)
+    ## R Version:  R version 3.5.3 (2019-03-11)
 
-    ## snowfall 1.84-6.1 initialized (using snow 0.4-2): parallel execution on 8 CPUs.
+    ## snowfall 1.84-6.1 initialized (using snow 0.4-3): parallel execution on 32 CPUs.
 
 ``` r
 sfExport("make_LC_tiles", "tile.tbl", "leg.lcc")
@@ -292,12 +332,12 @@ sfStop()
 ## takes few seconds depending on the number of cores
 ```
 
-<img src="./tex/htop_8_cores.png" alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
-<p class="caption">
-Fully parallelized computing using 8 cores. Displayed using htop software.
-</p>
+<img src="./tex/htop_8_cores.png" title="Fully parallelized computing using 8 cores. Displayed using htop software." alt="Fully parallelized computing using 8 cores. Displayed using htop software." width="100%" />
 
-This shows that the script has generated some 295 tiles in total. Note that if all land cover classes are unchanged, then there is no need to generate a Geotiff so that the total number of tiles is much smaller than what we get with `getSpatialTiles` function:
+This shows that the script has generated some 295 tiles in total. Note
+that if all land cover classes are unchanged, then there is no need to
+generate a Geotiff so that the total number of tiles is much smaller
+than what we get with `getSpatialTiles` function:
 
 ``` r
 t.lst <- list.files("./tiled", pattern=".tif", full.names=TRUE)
@@ -306,7 +346,8 @@ str(t.lst)
 
     ##  chr [1:295] "./tiled/T_100.tif" "./tiled/T_101.tif" ...
 
-From the list of files we can build a mosaic using GDAL and save it to disk (Mitchell & GDAL Developers, 2014):
+From the list of files we can build a mosaic using GDAL and save it to
+disk (Mitchell & GDAL Developers, 2014):
 
 ``` r
 out.tmp <- "./data/t_list.txt"
@@ -329,28 +370,49 @@ raster("./data/Indonesia_ESA_lcc_300m_change.tif")
     ## resolution  : 0.002083294, 0.002083294  (x, y)
     ## extent      : 108.7, 119.6998, -4.580189, 7.419585  (xmin, xmax, ymin, ymax)
     ## coord. ref. : +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 
-    ## data source : /data/git/BigSpatialDataR/data/Indonesia_ESA_lcc_300m_change.tif 
+    ## data source : /home/tomislav/Documents/git/BigSpatialDataR/data/Indonesia_ESA_lcc_300m_change.tif 
     ## names       : Indonesia_ESA_lcc_300m_change 
     ## values      : -32768, 32767  (min, max)
 
-<img src="./tex/Indonesia_ESA_lcc_300m_change_preview.jpg" alt="Land cover class changes (2000 to 2015) for Kalimantan." width="100%" />
-<p class="caption">
-Land cover class changes (2000 to 2015) for Kalimantan.
-</p>
+<img src="./tex/Indonesia_ESA_lcc_300m_change_preview.jpg" title="Land cover class changes (2000 to 2015) for Kalimantan." alt="Land cover class changes (2000 to 2015) for Kalimantan." width="100%" />
 
-Note that, to properly optimize computing, one might have to go through several iterations of improving the function and the tiling system. Also, when updating some results, it is a good idea to update only the tiles that need to be updated, which can again be specified in the function. Note also that from the code above, at any stage, we do not read the large images to R but only use R to program functions, run computing and build mosaics / large objects.
+Note that, to properly optimize computing, one might have to go through
+several iterations of improving the function and the tiling system.
+Also, when updating some results, it is a good idea to update only the
+tiles that need to be updated, which can again be specified in the
+function. Note also that from the code above, at any stage, we do not
+read the large images to R but only use R to program functions, run
+computing and build mosaics / large objects.
 
-DEM analysis using tiling and parallelization
----------------------------------------------
+## DEM analysis using tiling and parallelization
 
-In the next example we use multisource Digital Elevation Data to construct most accurate land surface model of an area, and then use R, GDAL, SAGA GIS and GRASS GIS to derive some DEM derivatives and classify landforms using the 30 m resolution land surface model (DLSM). The study area is 100 by 140 km area in the vicinity of Boulder CO. Two DEM data sources include:
+In the next example we use multisource Digital Elevation Data to
+construct most accurate land surface model of an area, and then use R,
+GDAL, SAGA GIS and GRASS GIS to derive some DEM derivatives and classify
+landforms using the 30 m resolution land surface model (DLSM). The study
+area is 100 by 140 km area in the vicinity of Boulder CO. Two DEM data
+sources include:
 
--   1/3rd arc-second (10 m) National Elevation Dataset (NED) [produced by USGS](https://catalog.data.gov/dataset/national-elevation-dataset-ned-1-3-arc-second-downloadable-data-collection-national-geospatial);
--   1 arc-second (30 m) global ALOS AW3D30 Digital Surface Model [produced and distributed by the Japan Aerospace Exploration Agency](http://www.eorc.jaxa.jp/ALOS/en/aw3d30/index.htm);
+  - 1/3rd arc-second (10 m) National Elevation Dataset (NED) [produced
+    by
+    USGS](https://catalog.data.gov/dataset/national-elevation-dataset-ned-1-3-arc-second-downloadable-data-collection-national-geospatial);
+  - 1 arc-second (30 m) global ALOS AW3D30 Digital Surface Model
+    [produced and distributed by the Japan Aerospace Exploration
+    Agency](http://www.eorc.jaxa.jp/ALOS/en/aw3d30/index.htm);
 
-Both elevation rasters can be considered to represent Land Surface Model i.e. height of the land surface or altitude. The NED data set is probably more accurate / more reliable, but the ALOS AW3D30 is available globally and is based primarily on remote sensing data. We would like to produce a merged product i.e. a product that is the best combination of the two. For this we can use the LiDAR based derived samples of land surface (as these are at the order of magnitude more detailed and more accurate) as referent points representing the whole study area.
+Both elevation rasters can be considered to represent Land Surface Model
+i.e. height of the land surface or altitude. The NED data set is
+probably more accurate / more reliable, but the ALOS AW3D30 is available
+globally and is based primarily on remote sensing data. We would like to
+produce a merged product i.e. a product that is the best combination of
+the two. For this we can use the LiDAR based derived samples of land
+surface (as these are at the order of magnitude more detailed and more
+accurate) as referent points representing the whole study area.
 
-We have downloaded some 1,400 LAS files from the opentopography.org website and converted the point clouds to 30 m resolution grids estimating the land surface altitude (based on the [lidR](https://github.com/Jean-Romain/lidR) package):
+We have downloaded some 1,400 LAS files from the opentopography.org
+website and converted the point clouds to 30 m resolution grids
+estimating the land surface altitude (based on the
+[lidR](https://github.com/Jean-Romain/lidR) package):
 
 ``` r
 laz2grid <- function(file, res=30, out.dir, prj){
@@ -367,15 +429,30 @@ laz2grid <- function(file, res=30, out.dir, prj){
 }
 ```
 
-where the function `lidR::grid_terrain` generates land surface model by using only LiDAR points classified as ground.
+where the function `lidR::grid_terrain` generates land surface model by
+using only LiDAR points classified as ground.
 
-In addition to the two elevation products, we can also add radar images of the area (ALOS PALSAR products) and NDVI images based on the Landsat cloud free images to account for the canopy and urban areas. To estimate the best combined Land Surface Model we will hence use the following formula:
+In addition to the two elevation products, we can also add radar images
+of the area (ALOS PALSAR products) and NDVI images based on the Landsat
+cloud free images to account for the canopy and urban areas. To estimate
+the best combined Land Surface Model we will hence use the following
+formula:
 
     mDLSM = f (NED, AW3D30, NDVI, HH/HV)
 
-where `NED` is the National Elevation Dataset, `AW3D30` is the ALOS digital surface model, `NDVI` is the Landsat based NDVI and `HH/HV` are the PALSAR-2 radar images at 20 m resolution (Shimada et al., 2014) bands HH (-27.7 5.3 dB) and HV (-35.8 3.0 dB). NDVI images can be used to represent the canopy height (the higher the NDVI the higher the chance that the canopy is high) and PALSAR-2 radar bands can be used to represent surface roughness, built up objects and bare rock areas.
+where `NED` is the National Elevation Dataset, `AW3D30` is the ALOS
+digital surface model, `NDVI` is the Landsat based NDVI and `HH/HV` are
+the PALSAR-2 radar images at 20 m resolution (Shimada et al., 2014)
+bands HH (-27.7 5.3 dB) and HV (-35.8 3.0 dB). NDVI images can be used
+to represent the canopy height (the higher the NDVI the higher the
+chance that the canopy is high) and PALSAR-2 radar bands can be used to
+represent surface roughness, built up objects and bare rock areas.
 
-We start by loading the training / reference points that have been derived from the [GLAS/ICESat mission](https://doi.org/10.5067/ICESAT/GLAS/DATA109) and the LiDAR based cloud data (downloaded from OpenTopography.org project and imported to R using the lidR package using the function from above):
+We start by loading the training / reference points that have been
+derived from the [GLAS/ICESat
+mission](https://doi.org/10.5067/ICESAT/GLAS/DATA109) and the LiDAR
+based cloud data (downloaded from OpenTopography.org project and
+imported to R using the lidR package using the function from above):
 
 ``` r
 pnt.ices <- read.csv("./data/icesat_1533635398523.csv")
@@ -394,9 +471,13 @@ pnt.all <- pnt.all[pnt.all$mDLSM<5000&pnt.all$mDLSM>1000,]
 ## 48,649 points
 ```
 
-Here the `icesat.csv` file has been obtained from the [openaltimetry.org](http://openaltimetry.org/data/icesat/) and the `Boulder_LiDAR_30m.tif` is a gridded file derived using LiDAR point clouds for a part of the study area.
+Here the `icesat.csv` file has been obtained from the
+[openaltimetry.org](http://openaltimetry.org/data/icesat/) and the
+`Boulder_LiDAR_30m.tif` is a gridded file derived using LiDAR point
+clouds for a part of the study area.
 
-Next we can overlay all points over the layers of interest and create a regression matrix. We can run this in parallel to speed up processing:
+Next we can overlay all points over the layers of interest and create a
+regression matrix. We can run this in parallel to speed up processing:
 
 ``` r
 library(parallel)
@@ -448,7 +529,8 @@ str(rm.DLSM)
     ##  $ Boulder_HV_30m.tif              : num  1187 2109 1611 2676 1355 ...
     ##  $ NDVI                            : num  11.5 16.7 23.6 18.6 23.2 ...
 
-Next we can fit a Random Forest model that can be used to generate a combined estimate of the land surface elevation:
+Next we can fit a Random Forest model that can be used to generate a
+combined estimate of the land surface elevation:
 
 ``` r
 library(ranger)
@@ -459,7 +541,7 @@ summary(sel.na)
 ```
 
     ##    Mode   FALSE    TRUE 
-    ## logical    2633   46016
+    ## logical    2632   46017
 
 ``` r
 m.DLSM <- ranger(fm.DLSM, rm.DLSM[sel.na,], num.trees=85, importance="impurity")
@@ -473,15 +555,18 @@ m.DLSM
     ## 
     ## Type:                             Regression 
     ## Number of trees:                  85 
-    ## Sample size:                      46016 
+    ## Sample size:                      46017 
     ## Number of independent variables:  5 
     ## Mtry:                             2 
     ## Target node size:                 5 
     ## Variable importance mode:         impurity 
-    ## OOB prediction error (MSE):       944.2905 
-    ## R squared (OOB):                  0.9970986
+    ## Splitrule:                        variance 
+    ## OOB prediction error (MSE):       955.4671 
+    ## R squared (OOB):                  0.9970578
 
-this is a highly accurate model with R-square above 0.99 (but with an RMSE of 30 m!) and where the most important bands are NED and AW3D30 elevation maps:
+this is a highly accurate model with R-square above 0.99 (but with an
+RMSE of 30 m\!) and where the most important bands are NED and AW3D30
+elevation maps:
 
 ``` r
 xl1.P <- as.list(ranger::importance(m.DLSM))
@@ -489,13 +574,17 @@ print(t(data.frame(xl1.P[order(unlist(xl1.P), decreasing=TRUE)])))
 ```
 
     ##                                     [,1]
-    ## Boulder_AW3D30s_30m_v1802.tif 7364842510
-    ## Boulder_NED_30m.tif           6737656026
-    ## NDVI                           435547908
-    ## Boulder_HH_30m.tif             267335902
-    ## Boulder_HV_30m.tif             166617627
+    ## Boulder_AW3D30s_30m_v1802.tif 8087580718
+    ## Boulder_NED_30m.tif           6029087221
+    ## NDVI                           407319776
+    ## Boulder_HH_30m.tif             221174694
+    ## Boulder_HV_30m.tif             197398564
 
-which was expected. Note that AW3D30s seems to come somewhat closer to the training points. To produce a combined mDLSM we run the fitted model at pixels of interest. To speed up the prediction we will first prepare a tiling system for this area:
+which was expected. Note that AW3D30s seems to come somewhat closer to
+the training points. To produce a combined mDLSM we run the fitted model
+at pixels of interest. To speed up the prediction we will first prepare
+a tiling system for this
+    area:
 
 ``` r
 objB <- GDALinfo("./data/Boulder_AW3D30s_30m_v1802.tif")
@@ -505,7 +594,7 @@ objB <- GDALinfo("./data/Boulder_AW3D30s_30m_v1802.tif")
     ## supported by this driver
 
 ``` r
-library(GSIF)
+library(landmap)
 ## tile to 10km blocks:
 tileB.lst <- getSpatialTiles(objB, block.x=1e4, return.SpatialPolygons=TRUE)
 ```
@@ -525,7 +614,9 @@ tileB.tbl <- getSpatialTiles(objB, block.x=1e4, return.SpatialPolygons=FALSE)
 tileB.tbl$ID <- as.character(1:nrow(tileB.tbl))
 ```
 
-next we prepare a function that we can use to create tiled objects and that we can then use to predict values in parallel:
+next we prepare a function that we can use to create tiled objects and
+that we can then use to predict values in
+parallel:
 
 ``` r
 predict_mDLSM <- function(m.DLSM, i, tileB.tbl, cov.lst, in.path="./data/", out.path="./tiledB/"){
@@ -566,9 +657,10 @@ sfInit(parallel=TRUE, cpus=parallel::detectCores())
 
     ## Warning in searchCommandline(parallel, cpus = cpus, type = type,
     ## socketHosts = socketHosts, : Unknown option on commandline:
-    ## rmarkdown::render('/data/git/BigSpatialDataR/README.Rmd',~+~~+~encoding~+~
+    ## rmarkdown::render('/home/tomislav/Documents/git/BigSpatialDataR/
+    ## README.Rmd',~+~~+~encoding~+~
 
-    ## snowfall 1.84-6.1 initialized (using snow 0.4-2): parallel execution on 8 CPUs.
+    ## snowfall 1.84-6.1 initialized (using snow 0.4-3): parallel execution on 32 CPUs.
 
 ``` r
 sfExport("predict_mDLSM", "m.DLSM", "tileB.tbl", "cov.lst")
@@ -600,29 +692,40 @@ sfStop()
 ## takes few minutes
 ```
 
-This produces a merged digital land surface model that can be further used for spatial modeling:
+This produces a merged digital land surface model that can be further
+used for spatial modeling:
 
 ``` r
-tB.lst <- list.files("./tiledB", pattern=".tif", full.names=TRUE)
-outB.tmp <- "./data/b_list.txt"
-vrtB.tmp <- "./data/boulder.vrt"
-cat(tB.lst, sep="\n", file=outB.tmp)
-system(paste0('gdalbuildvrt -input_file_list ', outB.tmp, ' ', vrtB.tmp))
-system(paste0('gdalwarp ', vrtB.tmp, 
-             ' \"./data/Boulder_mDLSM_30m.tif\" ', 
-             '-ot \"Int16\" -dstnodata \"-32767\" -co \"BIGTIFF=YES\" ',  
-             '-multi -wm 2000 -co \"COMPRESS=DEFLATE\" -overwrite ',
-             '-r \"near\" -wo \"NUM_THREADS=ALL_CPUS\"'))
+if(!file.exists("./data/Boulder_mDLSM_30m.tif")){
+  tB.lst <- list.files("./tiledB", pattern=".tif", full.names=TRUE)
+  outB.tmp <- "./data/b_list.txt"
+  vrtB.tmp <- "./data/boulder.vrt"
+  cat(tB.lst, sep="\n", file=outB.tmp)
+  system(paste0('gdalbuildvrt -input_file_list ', outB.tmp, ' ', vrtB.tmp))
+  system(paste0('gdalwarp ', vrtB.tmp, 
+               ' \"./data/Boulder_mDLSM_30m.tif\" ', 
+               '-ot \"Int16\" -dstnodata \"-32767\" -co \"BIGTIFF=YES\" ',  
+               '-multi -wm 2000 -co \"COMPRESS=DEFLATE\" -overwrite ',
+               '-r \"near\" -wo \"NUM_THREADS=ALL_CPUS\"'))
+}
 ```
 
-<img src="./tex/comprison_shading.png" alt="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points." width="100%" />
-<p class="caption">
-Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points.
-</p>
+<img src="./tex/comprison_shading.png" title="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points." alt="Comparison of the original AW3D30 vs the predicted Land Surface Model (mDLSM). Fitting a model to predict land surface model seems to solve the problem of artifacts / striping effects, but then it can introduce local artifacts in areas of higher vegetation and under-represented by training points." width="100%" />
 
-The resulting product seems to be satisfactory except in the eastern side of the study areas (plains) where RF seems to create many artificial spikes. RF is known to be very sensitive to extrapolation, so in this case it seems that plain areas were systematically under-represented and require additional training points. Note also that ranger package provides an option to derive also uncertainty of the predicted elevations in terms of lower and upper quantiles (read more in Hengl, Nussbaum, Wright, Heuvelink, & Gräler (2018)) so we could theoretically run Monte Carlo simulations or similar.
+The resulting product seems to be satisfactory except in the eastern
+side of the study areas (plains) where RF seems to create many
+artificial spikes. RF is known to be very sensitive to extrapolation, so
+in this case it seems that plain areas were systematically
+under-represented and require additional training points. Note also that
+ranger package provides an option to derive also uncertainty of the
+predicted elevations in terms of lower and upper quantiles (read more in
+Hengl, Nussbaum, Wright, Heuvelink, & Gräler (2018)) so we could
+theoretically run Monte Carlo simulations or similar.
 
-We can next use the newly produced mDLSM to derive number of DEM derivatives. SAGA GIS (Conrad et al., 2015) allows us to run processing in parallel, hence there is no need to tile. For example, to derive a slope map we can use:
+We can next use the newly produced mDLSM to derive number of DEM
+derivatives. SAGA GIS (Conrad et al., 2015) allows us to run processing
+in parallel, hence there is no need to tile. For example, to derive a
+slope map we can use:
 
 ``` r
 tmp = tempfile(fileext = ".sdat")
@@ -640,9 +743,12 @@ system(paste0('gdal_translate ', gsub(".sdat", "_slope.sdat", tmp),
               ' -ot "Byte" -co \"COMPRESS=DEFLATE\"'))
 ```
 
-SAGA automatically recognizes number of cores available and is thus highly suitable for processing large rasters on massive infrastructure.
+SAGA automatically recognizes number of cores available and is thus
+highly suitable for processing large rasters on massive infrastructure.
 
-To derive landform classes using the classification system of Jasiewicz & Stepinski (2013), we can also test using GRASS GIS, which is possible directly from R thanks to the spgrass7 package:
+To derive landform classes using the classification system of Jasiewicz
+& Stepinski (2013), we can also test using GRASS GIS, which is possible
+directly from R thanks to the spgrass7 package:
 
 ``` r
 library(rgrass7)
@@ -664,21 +770,72 @@ unlink_.gislock()
 remove_GISRC()
 ```
 
-GRASS 7 is also fairly efficient with processing large rasters (Neteler, 2015), even though parallelization needs to be implemented also with tiling. In fact, GRASS GIS can be regarded as an environment that provides applications (commands/modules), which means that, by extending the code described above one should be able to run several GRASS commands in parallel.
+GRASS 7 is also fairly efficient with processing large rasters (Neteler,
+2015), even though parallelization needs to be implemented also with
+tiling. In fact, GRASS GIS can be regarded as an environment that
+provides applications (commands/modules), which means that, by extending
+the code described above one should be able to run several GRASS
+commands in parallel.
 
-References
-----------
+## References
 
-Conrad, O., Bechtel, B., Bock, M., Dietrich, H., Fischer, E., Gerlitz, L., … Böhner, J. (2015). System for automated geoscientific analyses (saga) v. 2.1.4. *Geoscientific Model Development*, *8*(7), 1991–2007. doi:[10.5194/gmd-8-1991-2015](https://doi.org/10.5194/gmd-8-1991-2015)
+<div id="refs" class="references">
 
-Hengl, T., Nussbaum, M., Wright, M. N., Heuvelink, G. B., & Gräler, B. (2018). Random forest as a generic framework for predictive modeling of spatial and spatio-temporal variables. *PeerJ Preprints*, *6*, e26693v3. doi:[10.7287/peerj.preprints.26693v3](https://doi.org/10.7287/peerj.preprints.26693v3)
+<div id="ref-gmd-8-1991-2015">
 
-Jasiewicz, J., & Stepinski, T. F. (2013). Geomorphons — a pattern recognition approach to classification and mapping of landforms. *Geomorphology*, *182*, 147–156. doi:[https://doi.org/10.1016/j.geomorph.2012.11.005](https://doi.org/https://doi.org/10.1016/j.geomorph.2012.11.005)
+Conrad, O., Bechtel, B., Bock, M., Dietrich, H., Fischer, E., Gerlitz,
+L., … Böhner, J. (2015). System for automated geoscientific analyses
+(saga) v. 2.1.4. *Geoscientific Model Development*, *8*(7), 1991–2007.
+doi:[10.5194/gmd-8-1991-2015](https://doi.org/10.5194/gmd-8-1991-2015)
 
-Kirches, G., Brockmann, C., Boettcher, M., Peters, M., Bontemps, S., Lamarche, C., … Defourny, P. (2014). *Land Cover CCI Product User Guide: Version 2* (p. 4). ESA.
+</div>
 
-Mitchell, T., & GDAL Developers. (2014). *Geospatial Power Tools: GDAL Raster & Vector Commands*. Locate Press.
+<div id="ref-Hengl2018RFsp">
 
-Neteler, M. (2015). GRASS GIS 7: efficiently processing big geospatial data. In *FOSDEM 2015* (p. 1).
+Hengl, T., Nussbaum, M., Wright, M. N., Heuvelink, G. B., & Gräler, B.
+(2018). Random forest as a generic framework for predictive modeling of
+spatial and spatio-temporal variables. *PeerJ Preprints*, *6*, e26693v3.
+doi:[10.7287/peerj.preprints.26693v3](https://doi.org/10.7287/peerj.preprints.26693v3)
 
-Shimada, M., Itoh, T., Motooka, T., Watanabe, M., Shiraishi, T., Thapa, R., & Lucas, R. (2014). New global forest/non-forest maps from alos palsar data (2007–2010). *Remote Sensing of Environment*, *155*, 13–31.
+</div>
+
+<div id="ref-JASIEWICZ2013147">
+
+Jasiewicz, J., & Stepinski, T. F. (2013). Geomorphons — a pattern
+recognition approach to classification and mapping of landforms.
+*Geomorphology*, *182*, 147–156.
+doi:[https://doi.org/10.1016/j.geomorph.2012.11.005](https://doi.org/https://doi.org/10.1016/j.geomorph.2012.11.005)
+
+</div>
+
+<div id="ref-kirches2014land">
+
+Kirches, G., Brockmann, C., Boettcher, M., Peters, M., Bontemps, S.,
+Lamarche, C., … Defourny, P. (2014). *Land Cover CCI Product User Guide:
+Version 2* (p. 4). ESA.
+
+</div>
+
+<div id="ref-mitchell2014geospatial">
+
+Mitchell, T., & GDAL Developers. (2014). *Geospatial Power Tools: GDAL
+Raster & Vector Commands*. Locate Press.
+
+</div>
+
+<div id="ref-neteler2015grass">
+
+Neteler, M. (2015). GRASS GIS 7: efficiently processing big geospatial
+data. In *FOSDEM 2015* (p. 1).
+
+</div>
+
+<div id="ref-shimada2014new">
+
+Shimada, M., Itoh, T., Motooka, T., Watanabe, M., Shiraishi, T., Thapa,
+R., & Lucas, R. (2014). New global forest/non-forest maps from alos
+palsar data (2007–2010). *Remote Sensing of Environment*, *155*, 13–31.
+
+</div>
+
+</div>
